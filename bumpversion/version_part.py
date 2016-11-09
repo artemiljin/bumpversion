@@ -1,5 +1,6 @@
 from bumpversion.functions import NumericFunction, ValuesFunction
 
+
 class PartConfiguration(object):
     function_cls = NumericFunction
 
@@ -27,7 +28,6 @@ class NumericVersionPartConfiguration(PartConfiguration):
 
 
 class VersionPart(object):
-
     """
     This class represents part of a version number. It contains a self.config
     object that rules how the part behaves when increased or reset.

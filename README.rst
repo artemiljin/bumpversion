@@ -14,16 +14,16 @@ commits and tags:
 - just handles text files, so it's not specific to any programming language
 
 .. image:: https://travis-ci.org/peritus/bumpversion.png?branch=master
-  :target: https://travis-ci.org/peritus/bumpversion
+:target: https://travis-ci.org/peritus/bumpversion
 
 .. image:: https://ci.appveyor.com/api/projects/status/bxq8185bpq9u3sjd/branch/master?svg=true
-  :target: https://ci.appveyor.com/project/peritus/bumpversion
+:target: https://ci.appveyor.com/project/peritus/bumpversion
 
 Screencast
 ==========
 
 .. image:: https://dl.dropboxusercontent.com/u/8735936/Screen%20Shot%202013-04-12%20at%202.43.46%20PM.png
-  :target: https://asciinema.org/a/3828
+:target: https://asciinema.org/a/3828
 
 Installation
 ============

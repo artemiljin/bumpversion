@@ -80,4 +80,3 @@ def test_values_bump():
     func = ValuesFunction([0, 5, 10])
     with pytest.raises(ValueError):
         func.bump(10)
-

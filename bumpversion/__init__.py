@@ -12,7 +12,6 @@ try:
 except:
     from io import StringIO
 
-
 import argparse
 import os
 import re
@@ -41,12 +40,14 @@ DESCRIPTION = 'bumpversion: v{} (using Python v{})'.format(
 )
 
 import logging
+
 logger = logging.getLogger("bumpversion.logger")
 logger_list = logging.getLogger("bumpversion.list")
 
 from argparse import _AppendAction
-class DiscardDefaultIfSpecifiedAppendAction(_AppendAction):
 
+
+class DiscardDefaultIfSpecifiedAppendAction(_AppendAction):
     '''
     Fixes bug http://bugs.python.org/issue16399 for 'append' action
     '''
@@ -57,15 +58,16 @@ class DiscardDefaultIfSpecifiedAppendAction(_AppendAction):
             self._discarded_default = True
 
         super(DiscardDefaultIfSpecifiedAppendAction, self).__call__(
-                parser, namespace, values, option_string=None)
+            parser, namespace, values, option_string=None)
+
 
 time_context = {
     'now': datetime.now(),
     'utcnow': datetime.utcnow(),
 }
 
-class BaseVCS(object):
 
+class BaseVCS(object):
     @classmethod
     def commit(cls, message):
         f = NamedTemporaryFile('wb', delete=False)
@@ -92,7 +94,6 @@ class BaseVCS(object):
 
 
 class Git(BaseVCS):
-
     _TEST_USABLE_COMMAND = ["git", "rev-parse", "--git-dir"]
     _COMMIT_COMMAND = ["git", "commit", "-F"]
 
@@ -103,7 +104,7 @@ class Git(BaseVCS):
             subprocess.check_output(
                 ["git", "status", "--porcelain"]).splitlines()
             if not line.strip().startswith(b"??")
-        ]
+            ]
 
         if lines:
             raise WorkingDirectoryIsDirtyException(
@@ -153,7 +154,6 @@ class Git(BaseVCS):
 
 
 class Mercurial(BaseVCS):
-
     _TEST_USABLE_COMMAND = ["hg", "root"]
     _COMMIT_COMMAND = ["hg", "commit", "--logfile"]
 
@@ -168,7 +168,7 @@ class Mercurial(BaseVCS):
             subprocess.check_output(
                 ["hg", "status", "-mard"]).splitlines()
             if not line.strip().startswith(b"??")
-        ]
+            ]
 
         if lines:
             raise WorkingDirectoryIsDirtyException(
@@ -183,14 +183,15 @@ class Mercurial(BaseVCS):
     def tag(cls, name):
         subprocess.check_output(["hg", "tag", name])
 
+
 VCS = [Git, Mercurial]
 
 
 def prefixed_environ():
     return dict((("${}".format(key), value) for key, value in os.environ.items()))
 
-class ConfiguredFile(object):
 
+class ConfiguredFile(object):
     def __init__(self, path, versionconfig):
         self.path = path
         self._versionconfig = versionconfig
@@ -224,8 +225,8 @@ class ConfiguredFile(object):
                     lookbehind = lookbehind[1:]
 
                 if (search_lines[0] in lookbehind[0] and
-                   search_lines[-1] in lookbehind[-1] and
-                   search_lines[1:-1] == lookbehind[1:-1]):
+                            search_lines[-1] in lookbehind[-1] and
+                            search_lines[1:-1] == lookbehind[1:-1]):
                     logger.info("Found '{}' in {} at line {}: {}".format(
                         search, self.path, lineno - (len(lookbehind) - 1), line.decode('utf-8').rstrip()))
                     return True
@@ -262,8 +263,8 @@ class ConfiguredFile(object):
                 file_content_before.splitlines(),
                 file_content_after.splitlines(),
                 lineterm="",
-                fromfile="a/"+self.path,
-                tofile="b/"+self.path
+                fromfile="a/" + self.path,
+                tofile="b/" + self.path
             ))))
         else:
             logger.info("{} file {}".format(
@@ -281,23 +282,27 @@ class ConfiguredFile(object):
     def __repr__(self):
         return '<bumpversion.ConfiguredFile:{}>'.format(self.path)
 
+
 class IncompleteVersionRepresenationException(Exception):
     def __init__(self, message):
         self.message = message
+
 
 class MissingValueForSerializationException(Exception):
     def __init__(self, message):
         self.message = message
 
+
 class WorkingDirectoryIsDirtyException(Exception):
     def __init__(self, message):
         self.message = message
 
+
 def keyvaluestring(d):
     return ", ".join("{}={}".format(k, v) for k, v in sorted(d.items()))
 
-class Version(object):
 
+class Version(object):
     def __init__(self, values, original=None):
         self._values = dict(values)
         self.original = original
@@ -334,8 +339,8 @@ class Version(object):
 
         return new_version
 
-class VersionConfig(object):
 
+class VersionConfig(object):
     """
     Holds a complete representation of a version string
     """
@@ -386,7 +391,6 @@ class VersionConfig(object):
         for key, value in match.groupdict().items():
             _parsed[key] = VersionPart(value, self.part_configs.get(key))
 
-
         v = Version(_parsed, version_string)
 
         logger.info("Parsed the following values: %s" % keyvaluestring(v._values))
@@ -411,9 +415,9 @@ class VersionConfig(object):
 
         except KeyError as e:
             missing_key = getattr(e,
-                'message', # Python 2
-                e.args[0] # Python 3
-            )
+                                  'message',  # Python 2
+                                  e.args[0]  # Python 3
+                                  )
             raise MissingValueForSerializationException(
                 "Did not find key {} in {} when serializing version number".format(
                     repr(missing_key), repr(version)))
@@ -448,7 +452,6 @@ class VersionConfig(object):
 
         return serialized
 
-
     def _choose_serialize_format(self, version, context):
 
         chosen = None
@@ -480,6 +483,7 @@ class VersionConfig(object):
         # logger.info("Serialized to '{}'".format(serialized))
         return serialized
 
+
 OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
     '--config-file',
     '--current-version',
@@ -504,10 +508,10 @@ def split_args_in_optional_and_positional(args):
         previous = None
 
         if i > 0:
-            previous = args[i-1]
+            previous = args[i - 1]
 
-        if ((not arg.startswith('-'))  and
-            (previous not in OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES)):
+        if ((not arg.startswith('-')) and
+                (previous not in OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES)):
             positions.append(i)
 
     positionals = [arg for i, arg in enumerate(args) if i in positions]
@@ -515,14 +519,16 @@ def split_args_in_optional_and_positional(args):
 
     return (positionals, args)
 
-def main(original_args=None):
 
+def main(original_args=None):
     positionals, args = split_args_in_optional_and_positional(
-      sys.argv[1:] if original_args is None else original_args
+        sys.argv[1:] if original_args is None else original_args
     )
 
     if len(positionals[1:]) > 2:
-        warnings.warn("Giving multiple files on the command line will be deprecated, please use [bumpversion:file:...] in a config file.", PendingDeprecationWarning)
+        warnings.warn(
+            "Giving multiple files on the command line will be deprecated, please use [bumpversion:file:...] in a config file.",
+            PendingDeprecationWarning)
 
     parser1 = argparse.ArgumentParser(add_help=False)
 
@@ -553,12 +559,12 @@ def main(original_args=None):
         logger.addHandler(ch)
 
     if len(logger_list.handlers) == 0:
-       ch2 = logging.StreamHandler(sys.stdout)
-       ch2.setFormatter(logformatter)
-       logger_list.addHandler(ch2)
+        ch2 = logging.StreamHandler(sys.stdout)
+        ch2.setFormatter(logformatter)
+        logger_list.addHandler(ch2)
 
     if known_args.list:
-          logger_list.setLevel(1)
+        logger_list.setLevel(1)
 
     log_level = {
         0: logging.WARNING,
@@ -651,7 +657,8 @@ def main(original_args=None):
                 ThisVersionPartConfiguration = NumericVersionPartConfiguration
 
                 if 'values' in section_config:
-                    section_config['values'] = list(filter(None, (x.strip() for x in section_config['values'].splitlines())))
+                    section_config['values'] = list(
+                        filter(None, (x.strip() for x in section_config['values'].splitlines())))
                     ThisVersionPartConfiguration = ConfiguredVersionPartConfiguration
 
                 part_configs[section_value] = ThisVersionPartConfiguration(**section_config)
@@ -661,7 +668,8 @@ def main(original_args=None):
                 filename = section_value
 
                 if 'serialize' in section_config:
-                    section_config['serialize'] = list(filter(None, (x.strip() for x in section_config['serialize'].splitlines())))
+                    section_config['serialize'] = list(
+                        filter(None, (x.strip() for x in section_config['serialize'].splitlines())))
 
                 section_config['part_configs'] = part_configs
 
@@ -783,7 +791,6 @@ def main(original_args=None):
                          help='Commit message',
                          default=defaults.get('message', 'Bump version: {current_version} → {new_version}'))
 
-
     file_names = []
     if 'files' in defaults:
         assert defaults['files'] != None
@@ -799,7 +806,7 @@ def main(original_args=None):
 
     if args.dry_run:
         logger.info("Dry run active, won't touch any files.")
-    
+
     if args.new_version:
         new_version = vc.parse(args.new_version)
 
@@ -921,4 +928,3 @@ def main(original_args=None):
 
     if do_tag:
         vcs.tag(tag_name)
-

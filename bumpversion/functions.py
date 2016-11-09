@@ -1,9 +1,7 @@
 import re
-import datetime
 
 
 class NumericFunction(object):
-
     """
     This is a class that provides a numeric function for version parts.
     It simply starts with the provided first_value (0 by default) and
@@ -42,7 +40,6 @@ class NumericFunction(object):
 
 
 class ValuesFunction(object):
-
     """
     This is a class that provides a values list based function for version parts.
     It is initialized with a list of values and iterates through them when
@@ -82,8 +79,7 @@ class ValuesFunction(object):
 
     def bump(self, value):
         try:
-            return self._values[self._values.index(value)+1]
+            return self._values[self._values.index(value) + 1]
         except IndexError:
             raise ValueError(
                 "The part has already the maximum value among {} and cannot be bumped.".format(self._values))
-
