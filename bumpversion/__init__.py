@@ -184,8 +184,8 @@ class Mercurial(BaseVCS):
         subprocess.check_output(["hg", "tag", name])
 
 
-VCS = [Git, Mercurial]
-
+# VCS = [Git, Mercurial]
+VCS = []
 
 def prefixed_environ():
     return dict((("${}".format(key), value) for key, value in os.environ.items()))
@@ -816,6 +816,9 @@ def main(original_args=None):
 
     for file_name in file_names:
         files.append(ConfiguredFile(file_name, vc))
+
+    if not len(VCS):
+        vcs = None
 
     for vcs in VCS:
         if vcs.is_usable():
