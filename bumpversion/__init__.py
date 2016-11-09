@@ -16,13 +16,11 @@ import argparse
 import os
 import re
 import sre_constants
-import subprocess
 import warnings
 import io
 from string import Formatter
 from datetime import datetime
 from difflib import unified_diff
-from tempfile import NamedTemporaryFile
 
 import sys
 import codecs
@@ -66,126 +64,6 @@ time_context = {
     'utcnow': datetime.utcnow(),
 }
 
-
-class BaseVCS(object):
-    @classmethod
-    def commit(cls, message):
-        f = NamedTemporaryFile('wb', delete=False)
-        f.write(message.encode('utf-8'))
-        f.close()
-        subprocess.check_output(cls._COMMIT_COMMAND + [f.name], env=dict(
-            list(os.environ.items()) + [(b'HGENCODING', b'utf-8')]
-        ))
-        os.unlink(f.name)
-
-    @classmethod
-    def is_usable(cls):
-        try:
-            return subprocess.call(
-                cls._TEST_USABLE_COMMAND,
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE
-            ) == 0
-        except OSError as e:
-            if e.errno == 2:
-                # mercurial is not installed then, ok.
-                return False
-            raise
-
-
-class Git(BaseVCS):
-    _TEST_USABLE_COMMAND = ["git", "rev-parse", "--git-dir"]
-    _COMMIT_COMMAND = ["git", "commit", "-F"]
-
-    @classmethod
-    def assert_nondirty(cls):
-        lines = [
-            line.strip() for line in
-            subprocess.check_output(
-                ["git", "status", "--porcelain"]).splitlines()
-            if not line.strip().startswith(b"??")
-            ]
-
-        if lines:
-            raise WorkingDirectoryIsDirtyException(
-                "Git working directory is not clean:\n{}".format(
-                    b"\n".join(lines)))
-
-    @classmethod
-    def latest_tag_info(cls):
-        try:
-            # git-describe doesn't update the git-index, so we do that
-            subprocess.check_output(["git", "update-index", "--refresh"])
-
-            # get info about the latest tag in git
-            describe_out = subprocess.check_output([
-                "git",
-                "describe",
-                "--dirty",
-                "--tags",
-                "--long",
-                "--abbrev=40",
-                "--match=v*",
-            ], stderr=subprocess.STDOUT
-            ).decode().split("-")
-        except subprocess.CalledProcessError:
-            # logger.warn("Error when running git describe")
-            return {}
-
-        info = {}
-
-        if describe_out[-1].strip() == "dirty":
-            info["dirty"] = True
-            describe_out.pop()
-
-        info["commit_sha"] = describe_out.pop().lstrip("g")
-        info["distance_to_latest_tag"] = int(describe_out.pop())
-        info["current_version"] = "-".join(describe_out).lstrip("v")
-
-        return info
-
-    @classmethod
-    def add_path(cls, path):
-        subprocess.check_output(["git", "add", "--update", path])
-
-    @classmethod
-    def tag(cls, name):
-        subprocess.check_output(["git", "tag", name])
-
-
-class Mercurial(BaseVCS):
-    _TEST_USABLE_COMMAND = ["hg", "root"]
-    _COMMIT_COMMAND = ["hg", "commit", "--logfile"]
-
-    @classmethod
-    def latest_tag_info(cls):
-        return {}
-
-    @classmethod
-    def assert_nondirty(cls):
-        lines = [
-            line.strip() for line in
-            subprocess.check_output(
-                ["hg", "status", "-mard"]).splitlines()
-            if not line.strip().startswith(b"??")
-            ]
-
-        if lines:
-            raise WorkingDirectoryIsDirtyException(
-                "Mercurial working directory is not clean:\n{}".format(
-                    b"\n".join(lines)))
-
-    @classmethod
-    def add_path(cls, path):
-        pass
-
-    @classmethod
-    def tag(cls, name):
-        subprocess.check_output(["hg", "tag", name])
-
-
-# VCS = [Git, Mercurial]
-VCS = []
 
 def prefixed_environ():
     return dict((("${}".format(key), value) for key, value in os.environ.items()))
@@ -485,15 +363,12 @@ class VersionConfig(object):
 
 
 OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
-    '--config-file',
     '--current-version',
-    '--message',
     '--new-version',
     '--parse',
     '--serialize',
     '--search',
     '--replace',
-    '--tag-name',
     '-m'
 ]
 
@@ -531,11 +406,6 @@ def main(original_args=None):
             PendingDeprecationWarning)
 
     parser1 = argparse.ArgumentParser(add_help=False)
-
-    parser1.add_argument(
-        '--config-file', metavar='FILE',
-        default=argparse.SUPPRESS, required=False,
-        help='Config file to read most of the variables from (default: .bumpversion.cfg)')
 
     parser1.add_argument(
         '--verbose', action='count', default=0,
@@ -579,10 +449,6 @@ def main(original_args=None):
     defaults = {}
     vcs_info = {}
 
-    for vcs in VCS:
-        if vcs.is_usable():
-            vcs_info.update(vcs.latest_tag_info())
-
     if 'current_version' in vcs_info:
         defaults['current_version'] = vcs_info['current_version']
 
@@ -593,106 +459,98 @@ def main(original_args=None):
 
     config.add_section('bumpversion')
 
-    explicit_config = hasattr(known_args, 'config_file')
-
-    if explicit_config:
-        config_file = known_args.config_file
-    elif not os.path.exists('.bumpversion.cfg') and \
-            os.path.exists('setup.cfg'):
-        config_file = 'setup.cfg'
-    else:
-        config_file = '.bumpversion.cfg'
-
-    config_file_exists = os.path.exists(config_file)
+    # We need setup.py to get the major, minor versions
+    ver_source = 'setup.py'
+    if not os.path.exists(ver_source):
+        message = "Could not read {} file".format(ver_source)
+        logger.error(message)
+        sys.exit(2)
+    # We don't work with other configuration files except .bumpversion.cfg
+    config_file = '.bumpversion.cfg'
+    if not os.path.exists(config_file):
+        message = "Could not read {} file".format(config_file)
+        logger.error(message)
+        sys.exit(2)
 
     part_configs = {}
 
     files = []
 
-    if config_file_exists:
+    logger.info("Reading config file {}:".format(config_file))
+    logger.info(io.open(config_file, 'rt', encoding='utf-8').read())
 
-        logger.info("Reading config file {}:".format(config_file))
-        logger.info(io.open(config_file, 'rt', encoding='utf-8').read())
+    config.readfp(io.open(config_file, 'rt', encoding='utf-8'))
 
-        config.readfp(io.open(config_file, 'rt', encoding='utf-8'))
+    log_config = StringIO()
+    config.write(log_config)
 
-        log_config = StringIO()
-        config.write(log_config)
+    if 'files' in dict(config.items("bumpversion")):
+        warnings.warn(
+            "'files =' configuration is will be deprecated, please use [bumpversion:file:...]",
+            PendingDeprecationWarning
+        )
 
-        if 'files' in dict(config.items("bumpversion")):
-            warnings.warn(
-                "'files =' configuration is will be deprecated, please use [bumpversion:file:...]",
-                PendingDeprecationWarning
-            )
+    defaults.update(dict(config.items("bumpversion")))
 
-        defaults.update(dict(config.items("bumpversion")))
+    for listvaluename in ("serialize",):
+        try:
+            value = config.get("bumpversion", listvaluename)
+            defaults[listvaluename] = list(filter(None, (x.strip() for x in value.splitlines())))
+        except NoOptionError:
+            pass  # no default value then ;)
 
-        for listvaluename in ("serialize",):
-            try:
-                value = config.get("bumpversion", listvaluename)
-                defaults[listvaluename] = list(filter(None, (x.strip() for x in value.splitlines())))
-            except NoOptionError:
-                pass  # no default value then ;)
+    for boolvaluename in "dry_run":
+        try:
+            defaults[boolvaluename] = config.getboolean(
+                "bumpversion", boolvaluename)
+        except NoOptionError:
+            pass  # no default value then ;)
 
-        for boolvaluename in ("commit", "tag", "dry_run"):
-            try:
-                defaults[boolvaluename] = config.getboolean(
-                    "bumpversion", boolvaluename)
-            except NoOptionError:
-                pass  # no default value then ;)
+    for section_name in config.sections():
 
-        for section_name in config.sections():
+        section_name_match = re.compile("^bumpversion:(file|part):(.+)").match(section_name)
 
-            section_name_match = re.compile("^bumpversion:(file|part):(.+)").match(section_name)
+        if not section_name_match:
+            continue
 
-            if not section_name_match:
-                continue
+        section_prefix, section_value = section_name_match.groups()
 
-            section_prefix, section_value = section_name_match.groups()
+        section_config = dict(config.items(section_name))
 
-            section_config = dict(config.items(section_name))
+        if section_prefix == "part":
 
-            if section_prefix == "part":
+            ThisVersionPartConfiguration = NumericVersionPartConfiguration
 
-                ThisVersionPartConfiguration = NumericVersionPartConfiguration
+            if 'values' in section_config:
+                section_config['values'] = list(
+                    filter(None, (x.strip() for x in section_config['values'].splitlines())))
+                ThisVersionPartConfiguration = ConfiguredVersionPartConfiguration
 
-                if 'values' in section_config:
-                    section_config['values'] = list(
-                        filter(None, (x.strip() for x in section_config['values'].splitlines())))
-                    ThisVersionPartConfiguration = ConfiguredVersionPartConfiguration
+            part_configs[section_value] = ThisVersionPartConfiguration(**section_config)
 
-                part_configs[section_value] = ThisVersionPartConfiguration(**section_config)
+        elif section_prefix == "file":
 
-            elif section_prefix == "file":
+            filename = section_value
 
-                filename = section_value
+            if 'serialize' in section_config:
+                section_config['serialize'] = list(
+                    filter(None, (x.strip() for x in section_config['serialize'].splitlines())))
 
-                if 'serialize' in section_config:
-                    section_config['serialize'] = list(
-                        filter(None, (x.strip() for x in section_config['serialize'].splitlines())))
+            section_config['part_configs'] = part_configs
 
-                section_config['part_configs'] = part_configs
+            if not 'parse' in section_config:
+                section_config['parse'] = defaults.get("parse", '(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)')
 
-                if not 'parse' in section_config:
-                    section_config['parse'] = defaults.get("parse", '(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)')
+            if not 'serialize' in section_config:
+                section_config['serialize'] = defaults.get('serialize', [str('{major}.{minor}.{patch}')])
 
-                if not 'serialize' in section_config:
-                    section_config['serialize'] = defaults.get('serialize', [str('{major}.{minor}.{patch}')])
+            if not 'search' in section_config:
+                section_config['search'] = defaults.get("search", '{current_version}')
 
-                if not 'search' in section_config:
-                    section_config['search'] = defaults.get("search", '{current_version}')
+            if not 'replace' in section_config:
+                section_config['replace'] = defaults.get("replace", '{new_version}')
 
-                if not 'replace' in section_config:
-                    section_config['replace'] = defaults.get("replace", '{new_version}')
-
-                files.append(ConfiguredFile(filename, VersionConfig(**section_config)))
-
-    else:
-        message = "Could not read config file at {}".format(config_file)
-        if explicit_config:
-            raise argparse.ArgumentTypeError(message)
-        else:
-            logger.info(message)
+            files.append(ConfiguredFile(filename, VersionConfig(**section_config)))
 
     parser2 = argparse.ArgumentParser(prog='bumpversion', add_help=False, parents=[parser1])
     parser2.set_defaults(**defaults)
@@ -714,7 +572,7 @@ def main(original_args=None):
                          default=defaults.get("replace", '{new_version}'))
 
     known_args, remaining_argv = parser2.parse_known_args(args)
-
+    print (known_args, remaining_argv)
     defaults.update(vars(known_args))
 
     assert type(known_args.serialize) == list
@@ -769,28 +627,6 @@ def main(original_args=None):
                          help='New version that should be in the files',
                          required=not 'new_version' in defaults)
 
-    commitgroup = parser3.add_mutually_exclusive_group()
-
-    commitgroup.add_argument('--commit', action='store_true', dest="commit",
-                             help='Commit to version control', default=defaults.get("commit", False))
-    commitgroup.add_argument('--no-commit', action='store_false', dest="commit",
-                             help='Do not commit to version control', default=argparse.SUPPRESS)
-
-    taggroup = parser3.add_mutually_exclusive_group()
-
-    taggroup.add_argument('--tag', action='store_true', dest="tag", default=defaults.get("tag", False),
-                          help='Create a tag in version control')
-    taggroup.add_argument('--no-tag', action='store_false', dest="tag",
-                          help='Do not create a tag in version control', default=argparse.SUPPRESS)
-
-    parser3.add_argument('--tag-name', metavar='TAG_NAME',
-                         help='Tag name (only works with --tag)',
-                         default=defaults.get('tag_name', 'v{new_version}'))
-
-    parser3.add_argument('--message', '-m', metavar='COMMIT_MSG',
-                         help='Commit message',
-                         default=defaults.get('message', 'Bump version: {current_version} → {new_version}'))
-
     file_names = []
     if 'files' in defaults:
         assert defaults['files'] != None
@@ -801,7 +637,6 @@ def main(original_args=None):
     parser3.add_argument('files', metavar='file',
                          nargs='*',
                          help='Files to change', default=file_names)
-
     args = parser3.parse_args(remaining_argv + positionals)
 
     if args.dry_run:
@@ -817,22 +652,6 @@ def main(original_args=None):
     for file_name in file_names:
         files.append(ConfiguredFile(file_name, vc))
 
-    if not len(VCS):
-        vcs = None
-
-    for vcs in VCS:
-        if vcs.is_usable():
-            try:
-                vcs.assert_nondirty()
-            except WorkingDirectoryIsDirtyException as e:
-                if not defaults['allow_dirty']:
-                    logger.warn(
-                        "{}\n\nUse --allow-dirty to override this if you know what you're doing.".format(e.message))
-                    raise
-            break
-        else:
-            vcs = None
-
     # make sure files exist and contain version string
 
     logger.info("Asserting files {} contain the version string:".format(", ".join([str(f) for f in files])))
@@ -843,8 +662,6 @@ def main(original_args=None):
     # change version string in files
     for f in files:
         f.replace(current_version, new_version, context, args.dry_run)
-
-    commit_files = [f.path for f in files]
 
     config.set('bumpversion', 'new_version', args.new_version)
 
@@ -858,7 +675,7 @@ def main(original_args=None):
     new_config = StringIO()
 
     try:
-        write_to_config_file = (not args.dry_run) and config_file_exists
+        write_to_config_file = not args.dry_run
 
         logger.info("{} to config file {}:".format(
             "Would write" if not write_to_config_file else "Writing",
@@ -877,57 +694,3 @@ def main(original_args=None):
             "Unable to write UTF-8 to config file, because of an old configparser version. "
             "Update with `pip install --upgrade configparser`."
         )
-
-    if config_file_exists:
-        commit_files.append(config_file)
-
-    if not vcs:
-        return
-
-    assert vcs.is_usable(), "Did find '{}' unusable, unable to commit.".format(vcs.__name__)
-
-    do_commit = (not args.dry_run) and args.commit
-    do_tag = (not args.dry_run) and args.tag
-
-    logger.info("{} {} commit".format(
-        "Would prepare" if not do_commit else "Preparing",
-        vcs.__name__,
-    ))
-
-    for path in commit_files:
-        logger.info("{} changes in file '{}' to {}".format(
-            "Would add" if not do_commit else "Adding",
-            path,
-            vcs.__name__,
-        ))
-
-        if do_commit:
-            vcs.add_path(path)
-
-    vcs_context = {
-        "current_version": args.current_version,
-        "new_version": args.new_version,
-    }
-    vcs_context.update(time_context)
-    vcs_context.update(prefixed_environ())
-
-    commit_message = args.message.format(**vcs_context)
-
-    logger.info("{} to {} with message '{}'".format(
-        "Would commit" if not do_commit else "Committing",
-        vcs.__name__,
-        commit_message,
-    ))
-
-    if do_commit:
-        vcs.commit(message=commit_message)
-
-    tag_name = args.tag_name.format(**vcs_context)
-    logger.info("{} '{}' in {}".format(
-        "Would tag" if not do_tag else "Tagging",
-        tag_name,
-        vcs.__name__
-    ))
-
-    if do_tag:
-        vcs.tag(tag_name)
