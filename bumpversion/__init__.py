@@ -572,7 +572,7 @@ def main(original_args=None):
                          default=defaults.get("replace", '{new_version}'))
 
     known_args, remaining_argv = parser2.parse_known_args(args)
-    print (known_args, remaining_argv)
+
     defaults.update(vars(known_args))
 
     assert type(known_args.serialize) == list
