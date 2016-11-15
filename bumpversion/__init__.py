@@ -363,8 +363,6 @@ class VersionConfig(object):
 
 
 OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
-    '--current-version',
-    '--new-version',
     '--parse',
     '--serialize',
     '--search',
@@ -396,6 +394,7 @@ def split_args_in_optional_and_positional(args):
 
 
 def main(original_args=None):
+
     positionals, args = split_args_in_optional_and_positional(
         sys.argv[1:] if original_args is None else original_args
     )
@@ -414,10 +413,6 @@ def main(original_args=None):
     parser1.add_argument(
         '--list', action='store_true', default=False,
         help='List machine readable information', required=False)
-
-    parser1.add_argument(
-        '--allow-dirty', action='store_true', default=False,
-        help="Don't abort if working directory is dirty", required=False)
 
     known_args, remaining_argv = parser1.parse_known_args(args)
 
@@ -448,9 +443,6 @@ def main(original_args=None):
 
     defaults = {}
     vcs_info = {}
-
-    if 'current_version' in vcs_info:
-        defaults['current_version'] = vcs_info['current_version']
 
     config = RawConfigParser('')
 
@@ -501,8 +493,7 @@ def main(original_args=None):
 
     for boolvaluename in "dry_run":
         try:
-            defaults[boolvaluename] = config.getboolean(
-                "bumpversion", boolvaluename)
+            defaults[boolvaluename] = config.getboolean("bumpversion", boolvaluename)
         except NoOptionError:
             pass  # no default value then ;)
 
@@ -555,8 +546,6 @@ def main(original_args=None):
     parser2 = argparse.ArgumentParser(prog='bumpversion', add_help=False, parents=[parser1])
     parser2.set_defaults(**defaults)
 
-    parser2.add_argument('--current-version', metavar='VERSION',
-                         help='Version that needs to be updated', required=False)
     parser2.add_argument('--parse', metavar='REGEX',
                          help='Regex parsing the version string',
                          default=defaults.get("parse", '(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)'))
@@ -592,21 +581,21 @@ def main(original_args=None):
 
     current_version = vc.parse(known_args.current_version) if known_args.current_version else None
 
+    print (current_version)
     new_version = None
 
-    if not 'new_version' in defaults and known_args.current_version:
-        try:
-            if current_version and len(positionals) > 0:
-                logger.info("Attempting to increment part '{}'".format(positionals[0]))
-                new_version = current_version.bump(positionals[0], vc.order())
-                logger.info("Values are now: " + keyvaluestring(new_version._values))
-                defaults['new_version'] = vc.serialize(new_version, context)
-        except MissingValueForSerializationException as e:
-            logger.info("Opportunistic finding of new_version failed: " + e.message)
-        except IncompleteVersionRepresenationException as e:
-            logger.info("Opportunistic finding of new_version failed: " + e.message)
-        except KeyError as e:
-            logger.info("Opportunistic finding of new_version failed")
+    try:
+        if current_version and len(positionals) > 0:
+            logger.info("Attempting to increment part '{}'".format(positionals[0]))
+            new_version = current_version.bump(positionals[0], vc.order())
+            logger.info("Values are now: " + keyvaluestring(new_version._values))
+            defaults['new_version'] = vc.serialize(new_version, context)
+    except MissingValueForSerializationException as e:
+        logger.info("Opportunistic finding of new_version failed: " + e.message)
+    except IncompleteVersionRepresenationException as e:
+        logger.info("Opportunistic finding of new_version failed: " + e.message)
+    except KeyError as e:
+        logger.info("Opportunistic finding of new_version failed")
 
     parser3 = argparse.ArgumentParser(
         prog='bumpversion',
@@ -618,25 +607,16 @@ def main(original_args=None):
 
     parser3.set_defaults(**defaults)
 
-    parser3.add_argument('--current-version', metavar='VERSION',
-                         help='Version that needs to be updated',
-                         required=not 'current_version' in defaults)
     parser3.add_argument('--dry-run', '-n', action='store_true',
                          default=False, help="Don't write any files, just pretend.")
-    parser3.add_argument('--new-version', metavar='VERSION',
-                         help='New version that should be in the files',
-                         required=not 'new_version' in defaults)
 
     file_names = []
     if 'files' in defaults:
         assert defaults['files'] != None
         file_names = defaults['files'].split(' ')
 
-    parser3.add_argument('part',
-                         help='Part of the version to be bumped.')
-    parser3.add_argument('files', metavar='file',
-                         nargs='*',
-                         help='Files to change', default=file_names)
+    parser3.add_argument('part', help='Part of the version to be bumped.')
+    parser3.add_argument('files', metavar='file', nargs='*', help='Files to change', default=file_names)
     args = parser3.parse_args(remaining_argv + positionals)
 
     if args.dry_run:

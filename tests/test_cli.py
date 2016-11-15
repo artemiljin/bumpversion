@@ -49,14 +49,11 @@ EXPECTED_OPTIONS = """
 [-h]
 [--verbose]
 [--list]
-[--allow-dirty]
 [--parse REGEX]
 [--serialize FORMAT]
 [--search SEARCH]
 [--replace REPLACE]
-[--current-version VERSION]
 [--dry-run]
---new-version VERSION
 part
 [file [file ...]]
 """.strip().splitlines()
@@ -73,8 +70,6 @@ optional arguments:
   -h, --help            show this help message and exit
   --verbose             Print verbose logging to stderr (default: 0)
   --list                List machine readable information (default: False)
-  --allow-dirty         Don't abort if working directory is dirty (default:
-                        False)
   --parse REGEX         Regex parsing the version string (default:
                         (?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+))
   --serialize FORMAT    How to format what is parsed back to a version
@@ -83,12 +78,7 @@ optional arguments:
                         {current_version})
   --replace REPLACE     Template for complete string to replace (default:
                         {new_version})
-  --current-version VERSION
-                        Version that needs to be updated (default: None)
   --dry-run, -n         Don't write any files, just pretend. (default: False)
-  --new-version VERSION
-                        New version that should be in the files (default:
-                        None)
 """ % DESCRIPTION).lstrip()
 
 
@@ -96,11 +86,10 @@ def test_usage_string(tmpdir, capsys):
     tmpdir.chdir()
     tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
 current_version: 0.10.2
-new_version: 0.10.3
 files: setup.py""")
     tmpdir.join('setup.py').write("""setup(
     name='bumpversion',
-    version='0.5.4-dev',
+    version='0.10.2',
     url='https://github.com/peritus/bumpversion',
     author='Filip Noetzel',
 )
@@ -114,3 +103,39 @@ files: setup.py""")
     for option_line in EXPECTED_OPTIONS:
         assert option_line in out, "Usage string is missing {}".format(option_line)
     assert 'bumpversion:' in out
+
+
+def test_missing_config_py(tmpdir):
+    tmpdir.chdir()
+    with pytest.raises(SystemExit):
+        main([])
+
+
+def test_missing_bumpversion_cfg(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('setup.py').write("""setup(
+    name='bumpversion',
+    version='0.10.2',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+    with pytest.raises(SystemExit):
+        main([])
+
+
+def test_simple_positive(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
+current_version: 0.10.2
+files: setup.py""")
+    tmpdir.join('setup.py').write("""setup(
+    name='bumpversion',
+    version='0.10.2',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+#    with pytest.raises(SystemExit):
+    main(['patch'])
+    assert False
