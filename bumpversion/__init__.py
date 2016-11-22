@@ -620,7 +620,7 @@ def main(original_args=None):
     setup_version = ConfiguredFile(ver_source, vc).find()
     compare = setup_version.compare(vc.order(), current_version)
     leave_config_ver = True
-
+    new_version = None
     if len(positionals) > 0:
         for part in compare:
             if part == positionals[0]:
@@ -669,6 +669,12 @@ def main(original_args=None):
 
     if args.dry_run:
         logger.info("Dry run active, won't touch any files.")
+
+    # make sure files exist and contain version string
+    if leave_config_ver and new_version:
+        logger.info("Update info in setup.py")
+
+        ConfiguredFile(ver_source, vc).replace(setup_version, new_version, context, args.dry_run)
 
     config.set('bumpversion', 'new_version', args.new_version)
 

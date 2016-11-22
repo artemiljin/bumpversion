@@ -138,6 +138,7 @@ files: setup.py""")
 """)
     main(['patch'])
     assert '0.11.3' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.3' in tmpdir.join("setup.py").read()
 
 
 def test_update_same_config_version(tmpdir):
@@ -154,6 +155,8 @@ files: setup.py""")
 """)
     main(['patch'])
     assert '0.11.4' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.4' in tmpdir.join("setup.py").read()
+
 
 def test_update_new_config_version(tmpdir):
     tmpdir.chdir()
@@ -169,3 +172,4 @@ files: setup.py""")
 """)
     main(['patch'])
     assert '0.11.5' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.5' in tmpdir.join("setup.py").read()

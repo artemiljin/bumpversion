@@ -11,11 +11,10 @@ long_description = re.sub(
 )
 
 setup(
-    name='bumpversion',
-    version='0.5.4-dev',
-    url='https://github.com/peritus/bumpversion',
-    author='Filip Noetzel',
-    author_email='filip+bumpversion@j03.de',
+    name='ai-bumpversion',
+    version='0.0.1',
+    url='https://github.com/',
+    author='Filip Noetzel and me',
     license='MIT',
     packages=['bumpversion'],
     description=description,
