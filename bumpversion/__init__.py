@@ -86,7 +86,7 @@ class ConfiguredFile(object):
                     _parsed = {}
                     for key, value in match.groupdict().items():
                         _parsed[key] = VersionPart(value, self._versionconfig.part_configs.get(key))
-                    return Version(_parsed)
+                    return Version(_parsed, str(_parsed))
         return None
 
     def should_contain_version(self, version, context):

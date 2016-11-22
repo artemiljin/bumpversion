@@ -144,18 +144,18 @@ files: setup.py""")
 def test_update_same_config_version(tmpdir):
     tmpdir.chdir()
     tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
-current_version: 0.11.3
+current_version: 0.0.1
 files: setup.py""")
     tmpdir.join('setup.py').write("""setup(
     name='bumpversion',
-    version='0.11.3',
+    version='0.0.1',
     url='https://github.com/peritus/bumpversion',
     author='Filip Noetzel',
 )
 """)
     main(['patch'])
-    assert '0.11.4' in tmpdir.join(".bumpversion.cfg").read()
-    assert '0.11.4' in tmpdir.join("setup.py").read()
+    assert '0.0.2' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.0.2' in tmpdir.join("setup.py").read()
 
 
 def test_update_new_config_version(tmpdir):
