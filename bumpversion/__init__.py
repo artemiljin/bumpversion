@@ -74,7 +74,28 @@ class ConfiguredFile(object):
         self.path = path
         self._versionconfig = versionconfig
 
+    def find(self):
+        """
+        Attempt to find Version according to the pattern from version config file.
+        :return: Version object or None if not found
+        """
+        with io.open(self.path, 'rb') as f:
+            for line in f.readlines():
+                match = self._versionconfig.parse_regex.search(line.decode('utf-8').rstrip("\n"))
+                if match:
+                    _parsed = {}
+                    for key, value in match.groupdict().items():
+                        _parsed[key] = VersionPart(value, self._versionconfig.part_configs.get(key))
+                    return Version(_parsed)
+        return None
+
     def should_contain_version(self, version, context):
+        """
+        ?????
+        :param version:
+        :param context:
+        :return:
+        """
 
         context['current_version'] = self._versionconfig.serialize(version, context)
 
@@ -196,6 +217,24 @@ class Version(object):
 
     def __repr__(self):
         return '<bumpversion.Version:{}>'.format(keyvaluestring(self._values))
+
+    def compare(self, order, version_to_compare):
+        """
+        Compare two Version objects according to the orders
+        :param order: order to compare
+        :param version_to_compare: Version object to compare
+        :return: dictionary of part: boolean
+        """
+        result = {}
+        for label in order:
+            if label not in self._values:
+                continue
+            else:
+                if label not in version_to_compare._values:
+                    result[label] = True
+                else:
+                    result[label] = (self._values[label].value == version_to_compare._values[label].value)
+        return result
 
     def bump(self, part_name, order):
         bumped = False
@@ -358,7 +397,6 @@ class VersionConfig(object):
 
     def serialize(self, version, context):
         serialized = self._serialize(version, self._choose_serialize_format(version, context), context)
-        # logger.info("Serialized to '{}'".format(serialized))
         return serialized
 
 
@@ -394,7 +432,6 @@ def split_args_in_optional_and_positional(args):
 
 
 def main(original_args=None):
-
     positionals, args = split_args_in_optional_and_positional(
         sys.argv[1:] if original_args is None else original_args
     )
@@ -580,22 +617,33 @@ def main(original_args=None):
         sys.exit(1)
 
     current_version = vc.parse(known_args.current_version) if known_args.current_version else None
+    setup_version = ConfiguredFile(ver_source, vc).find()
+    compare = setup_version.compare(vc.order(), current_version)
+    leave_config_ver = True
 
-    print (current_version)
-    new_version = None
+    if len(positionals) > 0:
+        for part in compare:
+            if part == positionals[0]:
+                continue
+            else:
+                leave_config_ver = leave_config_ver and compare[part]
 
-    try:
-        if current_version and len(positionals) > 0:
-            logger.info("Attempting to increment part '{}'".format(positionals[0]))
-            new_version = current_version.bump(positionals[0], vc.order())
-            logger.info("Values are now: " + keyvaluestring(new_version._values))
-            defaults['new_version'] = vc.serialize(new_version, context)
-    except MissingValueForSerializationException as e:
-        logger.info("Opportunistic finding of new_version failed: " + e.message)
-    except IncompleteVersionRepresenationException as e:
-        logger.info("Opportunistic finding of new_version failed: " + e.message)
-    except KeyError as e:
-        logger.info("Opportunistic finding of new_version failed")
+        try:
+            if leave_config_ver and current_version:
+                logger.info("Attempting to increment part '{}'".format(positionals[0]))
+                new_version = current_version.bump(positionals[0], vc.order())
+                logger.info("Values are now: " + keyvaluestring(new_version._values))
+                defaults['new_version'] = vc.serialize(new_version, context)
+            elif not leave_config_ver:
+                logger.info("Using Version from {}".format(ver_source))
+                defaults['new_version'] = vc.serialize(setup_version, context)
+                logger.info("Values are now: " + keyvaluestring(setup_version._values))
+        except MissingValueForSerializationException as e:
+            logger.info("Opportunistic finding of new_version failed: " + e.message)
+        except IncompleteVersionRepresenationException as e:
+            logger.info("Opportunistic finding of new_version failed: " + e.message)
+        except KeyError as e:
+            logger.info("Opportunistic finding of new_version failed")
 
     parser3 = argparse.ArgumentParser(
         prog='bumpversion',
@@ -621,27 +669,6 @@ def main(original_args=None):
 
     if args.dry_run:
         logger.info("Dry run active, won't touch any files.")
-
-    if args.new_version:
-        new_version = vc.parse(args.new_version)
-
-    logger.info("New version will be '{}'".format(args.new_version))
-
-    file_names = file_names or positionals[1:]
-
-    for file_name in file_names:
-        files.append(ConfiguredFile(file_name, vc))
-
-    # make sure files exist and contain version string
-
-    logger.info("Asserting files {} contain the version string:".format(", ".join([str(f) for f in files])))
-
-    for f in files:
-        f.should_contain_version(current_version, context)
-
-    # change version string in files
-    for f in files:
-        f.replace(current_version, new_version, context, args.dry_run)
 
     config.set('bumpversion', 'new_version', args.new_version)
 
