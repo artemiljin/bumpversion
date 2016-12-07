@@ -77,17 +77,22 @@ class ConfiguredFile(object):
     def find(self):
         """
         Attempt to find Version according to the pattern from version config file.
-        :return: Version object or None if not found
+        :return: Version object, Version object with nulled patch or None, None if not found
         """
         with io.open(self.path, 'rb') as f:
             for line in f.readlines():
                 match = self._versionconfig.parse_regex.search(line.decode('utf-8').rstrip("\n"))
                 if match:
                     _parsed = {}
+                    _parsed_zero_patch = {}
                     for key, value in match.groupdict().items():
+                        if key == 'patch':
+                            _parsed_zero_patch[key] = VersionPart('0', self._versionconfig.part_configs.get(key))
+                        else:
+                            _parsed_zero_patch[key] = VersionPart(value, self._versionconfig.part_configs.get(key))
                         _parsed[key] = VersionPart(value, self._versionconfig.part_configs.get(key))
-                    return Version(_parsed, str(_parsed))
-        return None
+                    return Version(_parsed, str(_parsed)), Version(_parsed_zero_patch, str(_parsed_zero_patch))
+        return None, None
 
     def should_contain_version(self, version, context):
         """
@@ -617,7 +622,7 @@ def main(original_args=None):
         sys.exit(1)
 
     current_version = vc.parse(known_args.current_version) if known_args.current_version else None
-    setup_version = ConfiguredFile(ver_source, vc).find()
+    setup_version, zero_patch_setup_version = ConfiguredFile(ver_source, vc).find()
     compare = setup_version.compare(vc.order(), current_version)
     leave_config_ver = True
     new_version = None
@@ -636,7 +641,8 @@ def main(original_args=None):
                 defaults['new_version'] = vc.serialize(new_version, context)
             elif not leave_config_ver:
                 logger.info("Using Version from {}".format(ver_source))
-                defaults['new_version'] = vc.serialize(setup_version, context)
+                defaults['new_version'] = vc.serialize(zero_patch_setup_version, context)
+                new_version = zero_patch_setup_version
                 logger.info("Values are now: " + keyvaluestring(setup_version._values))
         except MissingValueForSerializationException as e:
             logger.info("Opportunistic finding of new_version failed: " + e.message)
@@ -671,10 +677,10 @@ def main(original_args=None):
         logger.info("Dry run active, won't touch any files.")
 
     # make sure files exist and contain version string
-    if leave_config_ver and new_version:
-        logger.info("Update info in setup.py")
+    # if leave_config_ver and new_version:
+    logger.info("Update info in setup.py")
 
-        ConfiguredFile(ver_source, vc).replace(setup_version, new_version, context, args.dry_run)
+    ConfiguredFile(ver_source, vc).replace(setup_version, new_version, context, args.dry_run)
 
     config.set('bumpversion', 'new_version', args.new_version)
 

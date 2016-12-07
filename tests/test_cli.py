@@ -124,7 +124,7 @@ def test_missing_bumpversion_cfg(tmpdir):
         main([])
 
 
-def test_use_dev_version(tmpdir):
+def test_use_dev_version_minor(tmpdir):
     tmpdir.chdir()
     tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
 current_version: 0.10.4
@@ -137,8 +137,25 @@ files: setup.py""")
 )
 """)
     main(['patch'])
-    assert '0.11.3' in tmpdir.join(".bumpversion.cfg").read()
-    assert '0.11.3' in tmpdir.join("setup.py").read()
+    assert '0.11.0' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.0' in tmpdir.join("setup.py").read()
+
+
+def test_use_dev_version_major(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
+current_version: 0.10.4
+files: setup.py""")
+    tmpdir.join('setup.py').write("""setup(
+    name='bumpversion',
+    version='1.11.3',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+    main(['patch'])
+    assert '1.11.0' in tmpdir.join(".bumpversion.cfg").read()
+    assert '1.11.0' in tmpdir.join("setup.py").read()
 
 
 def test_update_same_config_version(tmpdir):
