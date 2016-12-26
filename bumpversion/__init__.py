@@ -414,6 +414,18 @@ OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
 ]
 
 
+def ver_file_check(version_files):
+    """
+    Check if any version file exists
+    :param version_files:
+    :return: name of first file exist or None
+    """
+    for ver_file in version_files:
+        if os.path.exists(ver_file):
+            return ver_file
+    return None
+
+
 def split_args_in_optional_and_positional(args):
     # manually parsing positional arguments because stupid argparse can't mix
     # positional and optional arguments
@@ -494,9 +506,10 @@ def main(original_args=None):
     config.add_section('bumpversion')
 
     # We need setup.py to get the major, minor versions
-    ver_source = 'setup.py'
-    if not os.path.exists(ver_source):
-        message = "Could not read {} file".format(ver_source)
+    ver_sources = ['setup.py', 'plugin.json']
+    ver_source = ver_file_check(ver_sources)
+    if ver_source is None:
+        message = "Could not read any of {} file".format(str(ver_sources))
         logger.error(message)
         sys.exit(2)
     # We don't work with other configuration files except .bumpversion.cfg
@@ -678,7 +691,7 @@ def main(original_args=None):
 
     # make sure files exist and contain version string
     # if leave_config_ver and new_version:
-    logger.info("Update info in setup.py")
+    logger.info("Update info in {}".format(ver_source))
 
     ConfiguredFile(ver_source, vc).replace(setup_version, new_version, context, args.dry_run)
 
