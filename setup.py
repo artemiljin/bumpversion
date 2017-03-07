@@ -12,7 +12,7 @@ long_description = re.sub(
 
 setup(
     name='ai-bumpversion',
-    version='0.0.2',
+    version='0.0.3',
     url='https://github.com/',
     author='Filip Noetzel and me',
     license='MIT',

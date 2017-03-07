@@ -140,6 +140,22 @@ files: plugin.json""")
     assert '0.11.0' in tmpdir.join("plugin.json").read()
 
 
+def test_use_dev_version_minor_version(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
+current_version: 0.10.4
+files: VERSION""")
+    tmpdir.join('VERSION').write("""setup(
+    name='bumpversion',
+    version='0.11.3',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+    main(['patch'])
+    assert '0.11.0' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.0' in tmpdir.join("VERSION").read()
+
 def test_use_dev_version_minor(tmpdir):
     tmpdir.chdir()
     tmpdir.join('.bumpversion.cfg').write("""[bumpversion]

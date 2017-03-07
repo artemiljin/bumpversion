@@ -506,7 +506,7 @@ def main(original_args=None):
     config.add_section('bumpversion')
 
     # We need setup.py to get the major, minor versions
-    ver_sources = ['setup.py', 'plugin.json']
+    ver_sources = ['setup.py', 'plugin.json', 'VERSION']
     ver_source = ver_file_check(ver_sources)
     if ver_source is None:
         message = "Could not read any of {} file".format(str(ver_sources))
