@@ -74,7 +74,7 @@ class ConfiguredFile(object):
         self.path = path
         self._versionconfig = versionconfig
 
-    def find(self):
+    def find(self, part='patch'):
         """
         Attempt to find Version according to the pattern from version config file.
         :return: Version object, Version object with nulled patch or None, None if not found
@@ -86,7 +86,7 @@ class ConfiguredFile(object):
                     _parsed = {}
                     _parsed_zero_patch = {}
                     for key, value in match.groupdict().items():
-                        if key == 'patch':
+                        if key == part:
                             _parsed_zero_patch[key] = VersionPart('0', self._versionconfig.part_configs.get(key))
                         else:
                             _parsed_zero_patch[key] = VersionPart(value, self._versionconfig.part_configs.get(key))
@@ -635,7 +635,7 @@ def main(original_args=None):
         sys.exit(1)
 
     current_version = vc.parse(known_args.current_version) if known_args.current_version else None
-    setup_version, zero_patch_setup_version = ConfiguredFile(ver_source, vc).find()
+    setup_version, zero_patch_setup_version = ConfiguredFile(ver_source, vc).find(original_args[0])
     compare = setup_version.compare(vc.order(), current_version)
     leave_config_ver = True
     new_version = None
@@ -663,7 +663,6 @@ def main(original_args=None):
             logger.info("Opportunistic finding of new_version failed: " + e.message)
         except KeyError as e:
             logger.info("Opportunistic finding of new_version failed")
-
     parser3 = argparse.ArgumentParser(
         prog='bumpversion',
         description=DESCRIPTION,
@@ -692,9 +691,7 @@ def main(original_args=None):
     # make sure files exist and contain version string
     # if leave_config_ver and new_version:
     logger.info("Update info in {}".format(ver_source))
-
     ConfiguredFile(ver_source, vc).replace(setup_version, new_version, context, args.dry_run)
-
     config.set('bumpversion', 'new_version', args.new_version)
 
     for key, value in config.items('bumpversion'):

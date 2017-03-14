@@ -123,6 +123,7 @@ def test_missing_bumpversion_cfg(tmpdir):
     with pytest.raises(SystemExit):
         main([])
 
+
 def test_use_dev_version_minor_package_json(tmpdir):
     tmpdir.chdir()
     tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
@@ -155,6 +156,7 @@ files: VERSION""")
     main(['patch'])
     assert '0.11.0' in tmpdir.join(".bumpversion.cfg").read()
     assert '0.11.0' in tmpdir.join("VERSION").read()
+
 
 def test_use_dev_version_minor(tmpdir):
     tmpdir.chdir()
@@ -222,3 +224,23 @@ files: setup.py""")
     main(['patch'])
     assert '0.11.5' in tmpdir.join(".bumpversion.cfg").read()
     assert '0.11.5' in tmpdir.join("setup.py").read()
+
+
+def test_use_dev_version_sequence_package_json(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
+current_version: 0.11.3-dev.2
+parse = (?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)\-?(?P<branch>\w+)?\.?(?P<sequence>\d+)?
+serialize =
+  {major}.{minor}.{patch}-{branch}.{sequence}
+files: plugin.json""")
+    tmpdir.join('plugin.json').write("""setup(
+    name='bumpversion',
+    version='0.14.3-dev.0',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+    main(['sequence'])
+    assert '0.14.3-dev.0' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.14.3-dev.0' in tmpdir.join("plugin.json").read()
