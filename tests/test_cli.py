@@ -244,3 +244,22 @@ files: plugin.json""")
     main(['sequence'])
     assert '0.14.3-dev.0' in tmpdir.join(".bumpversion.cfg").read()
     assert '0.14.3-dev.0' in tmpdir.join("plugin.json").read()
+
+def test_bump_version_sequence_package_json(tmpdir):
+    tmpdir.chdir()
+    tmpdir.join('.bumpversion.cfg').write("""[bumpversion]
+current_version: 0.11.3-dev.2
+parse = (?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)\-?(?P<branch>\w+)?\.?(?P<sequence>\d+)?
+serialize =
+  {major}.{minor}.{patch}-{branch}.{sequence}
+files: plugin.json""")
+    tmpdir.join('plugin.json').write("""setup(
+    name='bumpversion',
+    version='0.11.3-dev.0',
+    url='https://github.com/peritus/bumpversion',
+    author='Filip Noetzel',
+)
+""")
+    main(['sequence'])
+    assert '0.11.3-dev.3' in tmpdir.join(".bumpversion.cfg").read()
+    assert '0.11.3-dev.3' in tmpdir.join("plugin.json").read()
