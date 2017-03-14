@@ -635,11 +635,11 @@ def main(original_args=None):
         sys.exit(1)
 
     current_version = vc.parse(known_args.current_version) if known_args.current_version else None
-    setup_version, zero_patch_setup_version = ConfiguredFile(ver_source, vc).find(original_args[0])
-    compare = setup_version.compare(vc.order(), current_version)
     leave_config_ver = True
     new_version = None
     if len(positionals) > 0:
+        setup_version, zero_patch_setup_version = ConfiguredFile(ver_source, vc).find(positionals[0])
+        compare = setup_version.compare(vc.order(), current_version)
         for part in compare:
             if part == positionals[0]:
                 continue
